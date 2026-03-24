@@ -1,0 +1,10 @@
+# Ignore SAM build artifacts
+.aws-sam/
+
+# Ignore downloaded SAM CLI zip and extracted installer
+sam.zip
+sam-installation/
+
+# OS/editor files (optional)
+.DS_Store
+*.swp
