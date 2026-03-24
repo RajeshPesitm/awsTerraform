@@ -1,6 +1,8 @@
 import * as fs from 'node:fs';
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DeleteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+
 
 // Load HTML once
 const html = fs.readFileSync('index.html', { encoding: 'utf8' });
@@ -18,23 +20,62 @@ export const handler = async (event) => {
             };
         }
 
-        // Store form data
-        if (event.queryStringParameters) {
+        
+        const params = event.queryStringParameters || {};
+
+        //Delete
+        if (params.action === "delete" && params.id) {
+            await dynamo.send(new DeleteCommand({
+                TableName: "formStore",
+                Key: {
+                    PK: "form",
+                    SK: params.id
+                }
+            }));
+        }
+
+        //Edit
+        else if (params.action === "edit" && params.id) {
+            await dynamo.send(new UpdateCommand({
+                TableName: "formStore",
+                Key: {
+                    PK: "form",
+                    SK: params.id
+                },
+                UpdateExpression: "set #f = :form",
+                ExpressionAttributeNames: {
+                    "#f": "form"
+                },
+                ExpressionAttributeValues: {
+                    ":form": {
+                        name: params.name,
+                        location: params.location
+                    }
+                }
+            }));
+        }
+
+        // Only insert if it's a fresh submit
+        else if (params.name || params.location) {
             await dynamo.send(new PutCommand({
                 TableName: "formStore",
                 Item: {
                     PK: "form",
                     SK: event.requestContext.requestId,
-                    form: event.queryStringParameters
+                    form: {
+                        name: params.name,
+                        location: params.location
+                    }
                 }
             }));
         }
+
 
         // Render HTML
         let modifiedHTML = dynamicForm(html, event.queryStringParameters);
 
         // ✅ Query DynamoDB (FIXED)
-        const params = {
+        const dbparams = {
             TableName: "formStore",
             KeyConditionExpression: "PK = :PK",
             ExpressionAttributeValues: {
@@ -42,7 +83,7 @@ export const handler = async (event) => {
             }
         };
 
-        const tableQuery = await dynamo.send(new QueryCommand(params));
+        const tableQuery = await dynamo.send(new QueryCommand(dbparams));
 
         // Add table to HTML
         modifiedHTML = dynamictable(modifiedHTML, tableQuery);
@@ -83,9 +124,35 @@ function dynamictable(html, tableQuery) {
 
     if (tableQuery.Items && tableQuery.Items.length > 0) {
         for (let i = 0; i < tableQuery.Items.length; i++) {
-            table += "<li>" + JSON.stringify(tableQuery.Items[i]) + "</li>";
+            const item = tableQuery.Items[i];
+
+            const id = item.SK;
+            const name = item.form?.name || "";
+            const location = item.form?.location || "";
+
+            table +=    `
+                        <li>
+                            <b>Name:</b> ${name} |
+                            <b>Location:</b> ${location}
+                            
+                            <!-- DELETE -->
+                            <a href="/?action=delete&id=${id}">
+                                <button>Delete</button>
+                            </a>
+
+                            <!-- EDIT -->
+                            <form action="/" method="GET" style="display:inline;">
+                                <input type="hidden" name="action" value="edit">
+                                <input type="hidden" name="id" value="${id}">
+                                <input type="text" name="name" value="${name}" />
+                                <input type="text" name="location" value="${location}" />
+                                <input type="submit" value="Update" />
+                            </form>
+                        </li>
+                        `;
         }
-        table = "<pre>" + table + "</pre>";
+
+        table = "<ul>" + table + "</ul>";
     }
 
     return html.replace("{table}", "<h4>DynamoDB:</h4>" + table);
