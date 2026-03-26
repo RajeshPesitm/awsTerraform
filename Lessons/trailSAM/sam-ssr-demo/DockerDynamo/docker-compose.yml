@@ -17,3 +17,12 @@ services:
       - DYNAMO_ENDPOINT=http://dynamodb:8000
     depends_on:
       - dynamodb
+
+  csv-importer:
+    build: ./csv-importer
+    container_name: csv-importer
+    depends_on:
+      - dynamodb
+    volumes:
+      - ./csv-importer:/app
+    command: python import_students.py
