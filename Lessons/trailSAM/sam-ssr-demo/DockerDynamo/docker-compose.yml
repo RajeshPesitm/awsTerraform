@@ -26,3 +26,23 @@ services:
     volumes:
       - ./csv-importer:/app
     command: python import_students.py
+    profiles:
+      - tools
+
+  backend:
+    build: ./backend
+    container_name: backend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - dynamodb
+    volumes:
+      - ./backend:/app
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./frontend:/app

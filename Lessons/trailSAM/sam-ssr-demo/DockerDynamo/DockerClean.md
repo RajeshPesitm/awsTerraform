@@ -20,7 +20,7 @@ docker stop $(docker ps -q)
 ### **2️⃣ Remove all containers**
 
 ```bash
-docker rm $(docker ps -a)
+docker rm $(docker ps -aq)
 ```
 
 * `docker ps -a ` lists **all containers, stopped**.
